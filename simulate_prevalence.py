@@ -10,15 +10,16 @@ logger.setLevel('INFO')
 class SimulatePrevalence:
 
     def __init__(self, family_tree:FamilyTree,
-                 recessives_are_known:bool=True, gene_frequency:float=None):
+                 recessives_are_known:bool=True, recessive_prevalence:float=None):
 
         ''' Set up persistent objects to populate data '''
         self._recessives_are_known=recessives_are_known
-        self._gene_frequency=gene_frequency
+        self._recessive_prevalence=recessive_prevalence
         self.optimise_tree(family_tree)
 
         # Define simulation object
-        self._simulation = None     # Set simulation object
+        self._simulation = None
+        self.simulate(recessive_prevalence)# Set simulation object
 
     def optimise_tree(self, family_tree:FamilyTree):
 
@@ -26,7 +27,10 @@ class SimulatePrevalence:
         self.__family_list = family_tree.family_list
         self.__relationships = family_tree.relationships
         self.__independent_genomes = family_tree.independent_genomes
-        self.__recessive_list = set(family_tree.recessive_list)
+        if family_tree.recessive_list is None:
+            self.__recessive_list = None
+        else:
+            self.__recessive_list = set(family_tree.recessive_list)
         self._status_dict = family_tree.get_status_dict(all)
 
     def _get_possible_initial_genomes(self, gene_frequency):
@@ -75,7 +79,10 @@ class SimulatePrevalence:
 
         return convert_to_dicts(weighted_genomes, key_people)
 
-    def _get_transmission_chains(self, relationships):
+    def _get_transmission_chains(self, relationships=None):
+
+        if relationships is None:
+            relationships = self.__relationships
 
         logger.debug('Transmission chain simulation starting')
         transmissions = WeightedPermutations.run(len(relationships), 1)
@@ -122,7 +129,7 @@ class SimulatePrevalence:
     def _check_recessive_list(self, status, child):
 
         ''' Check known recessive child in status list '''
-        if self._recessives_are_known:
+        if self._recessives_are_known and (self.__recessive_list is not None):
             if status == 2:
                 return (child in self.__recessive_list)
             else:
@@ -190,16 +197,22 @@ class SimulatePrevalence:
             if child_complete[pos]:
                 if not self._check_status_is_valid(status[child], child):
                     return None
+                if not self._check_recessive_list(status[child], child):
+                    return None
 
         # Return an ordered list of genetic statuses
         return [status[name] for name in self.__family_list]
 
-    def simulate(self, gene_frequency=1/300):
+    def simulate(self, recessive_prevalence=None):
 
         #logger.info('Starting simulation')
         print('Starting simulation')
 
         # Get initial genomes to seed with
+        if recessive_prevalence is None:
+            recessive_prevalence = self._recessive_prevalence
+        assert(recessive_prevalence is not None)
+        gene_frequency = recessive_prevalence ** 0.5
         initial_genomes = self._get_possible_initial_genomes(gene_frequency)
 
         # Get potential transmission trees
@@ -221,7 +234,6 @@ class SimulatePrevalence:
         probabilities = {}
         for status in statuses:
             # Calculate probability of each status for the list of people
-            print('{}'.format(status))
             def prob(status, person):
                 pos = self.__family_list.index(person)
                 try:
