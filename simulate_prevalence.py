@@ -23,6 +23,8 @@ class SimulatePrevalence:
 
     def optimise_tree(self, family_tree:FamilyTree):
 
+        logger.info('Tree optimisation not yet developed')
+
         self._original_tree = family_tree
         self.__family_list = family_tree.family_list
         self.__relationships = family_tree.relationships
